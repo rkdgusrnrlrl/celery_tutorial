@@ -10,11 +10,7 @@ app.conf.timezone = 'Asia/Seoul'
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     # Calls test('hello') every 10 seconds.
-    print('start')
     try:
-
-        sender.add_periodic_task(10.0, test.s('hello'), name='add every 10')
-
         sender.add_periodic_task(30.0,
                                  check_api.s(api_base_url='https://www.grap.io/api',
                                              req_url='/v2/user/login',

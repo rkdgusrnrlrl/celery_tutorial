@@ -1,25 +1,58 @@
 from celery import Celery
 import requests
+import json
 
-app = Celery('tasks', broker='redis://localhost')
+app = Celery('tasks', broker='redis://localhost:6379/0',
+             backend='redis://localhost:6379/0')
+app.conf.timezone = 'Asia/Seoul'
+
+
+@app.on_after_configure.connect
+def setup_periodic_tasks(sender, **kwargs):
+    # Calls test('hello') every 10 seconds.
+    print('start')
+    try:
+
+        sender.add_periodic_task(10.0, test.s('hello'), name='add every 10')
+
+        sender.add_periodic_task(30.0,
+                                 check_api.s(api_base_url='https://www.grap.io/api',
+                                             req_url='/v2/user/login',
+                                             req_method='POST',
+                                             req_body='{}'),
+                                name='add every 30')
+    except Exception as e:
+        print(e)
+
+
 
 @app.task
-def check_api(api_monitor_request):
-    api_base_url = api_monitor_request.api_base_url
-    api_url = api_monitor_request.req_url
-    method = api_monitor_request.req_method
-    body = api_monitor_request.get_body()
-    headers = api_monitor_request.get_headers()
+def test(arg):
+    print(arg)
 
-    r = call_api(api_base_url, api_url, body, headers, method)
+@app.task
+def check_api(api_base_url, req_url, req_method, req_body, req_header="{}"):
+    body = chage_json(req_body)
+    headers = chage_json(req_header)
 
-    if r is None:
-        return
+    try:
+        r = call_api(api_base_url, req_url, body, headers, req_method)
+        if r is None:
+            return
 
-    res_sec = r.elapsed.total_seconds()
-    res_data = r.json()
-    res_data['res_sec'] = res_sec
-    return res_data
+        res_sec = r.elapsed.total_seconds()
+        res_data = r.json()
+        res_data['res_sec'] = res_sec
+        return res_data
+    except Exception as e:
+        print(e)
+
+
+def chage_json(str):
+    try:
+        return json.loads(str)
+    except ValueError:
+        return {}
 
 
 def call_api(api_base_url, api_url, body, headers, method):
